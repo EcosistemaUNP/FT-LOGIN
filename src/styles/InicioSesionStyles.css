@@ -1,0 +1,21 @@
+.login-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #E0E0E0;
+}
+
+.politica-datos {
+    margin: 0px;
+    color: #365072;
+    font-weight: 700;
+    font-size: 0.75em;
+    text-align: center;
+    min-width: 235px;
+    max-width: 235px;
+}
+
+.politica-datos:hover {
+    color: black;
+}
