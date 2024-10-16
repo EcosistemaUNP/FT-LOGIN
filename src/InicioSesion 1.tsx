@@ -45,7 +45,6 @@ const Login: React.FC<FormIngresoProps> = (props) => {
   const {
     recaptchaToken,
     validated,
-    error,
     attempts,
     isBlocked,
     timer,

@@ -6,7 +6,6 @@ import { InicioSesionRequest } from "../request/InicisoSesionRequest";
 export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
   const [validated, setValidated] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<number>(0);
   const [isBlocked, setIsBlocked] = useState<boolean>(false);
   const [timer, setTimer] = useState<number>(0);
@@ -52,16 +51,24 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
       if (!form.checkValidity()) {
         e.stopPropagation();
         setValidated(false);
+        toast.error("Formulario no valido", {
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        });
         return;
       }
 
       if (!recaptchaToken) {
         e.stopPropagation();
-        setError("Por favor, completa el reCAPTCHA");
+        toast.error("Por favor, completa el reCAPTCHA", {
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        });
         return;
       }
 
-      setError(null);
       setValidated(true);
 
       const username = usuarioRef.current?.value;
@@ -89,7 +96,6 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
               error: {
                 render() {
                   setValidated(false);
-                  setError("Error durante el ingreso");
                   setAttempts((prevAttempts) => prevAttempts + 1);
                   return "Error durante el ingreso";
                 },
@@ -103,11 +109,12 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
             }
           );
         } catch (err) {
-          if (err instanceof Error) {
-            setError(err.message);
-          } else {
-            setError("Error desconocido");
-          }
+          toast.error("Hubo un error", {
+            position: "top-right",
+            className: "foo-bar",
+            hideProgressBar: true,
+          });
+
           recaptchaRef.current?.reset();
         } finally {
           if (attempts + 1 >= maxAttempts) {
@@ -116,7 +123,11 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
           }
         }
       } else {
-        setError("Usuario o contraseña no pueden estar vacíos");
+        toast.error("Usuario o contraseña no pueden estar vacíos", {
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        });
       }
     } else {
       setIsBlocked(true);
@@ -127,7 +138,6 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
   return {
     recaptchaToken,
     validated,
-    error,
     attempts,
     isBlocked,
     timer,
