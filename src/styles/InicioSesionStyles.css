@@ -4,6 +4,7 @@
     justify-content: center;
     height: 100vh;
     background-color: #E0E0E0;
+    margin: 0 auto;
 }
 
 .politica-datos {
@@ -19,3 +20,4 @@
 .politica-datos:hover {
     color: black;
 }
+
