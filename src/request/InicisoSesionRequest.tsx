@@ -12,14 +12,16 @@ export const InicioSesionRequest = async (
       body: JSON.stringify({ username, password, recaptchaToken }),
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      return { status: response.status, access_token: data.access_token };
-    } else {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Error en el servidor");
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.log(data.error);
+      
+      throw new Error(data.error);
     }
-  } catch (error) {
-    throw new Error("Error de conexión.");
+
+    return { access_token: data.access_token };
+  } catch (error: any) {
+    throw new Error(error.message);
   }
 };

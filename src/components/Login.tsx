@@ -3,7 +3,11 @@ import {
   IdUsuarioContext,
   IdContrasegnaContext,
 } from "../contexts/IngresoContex";
-import { validarInputUsuario } from "../func/ValidacionInput";
+import {
+  validarTextoMayusculasYNumeros,
+  validarTextoPuntoTexto,
+  formatearUsuario,
+} from "../func/ValidacionInput";
 import { FaUser, FaRegEye, FaRegEyeSlash } from "react-icons/fa";
 import { FaUnlockKeyhole } from "react-icons/fa6";
 import {
@@ -39,12 +43,28 @@ const Usuario: React.FC<UsuarioProps> = ({ usuarioRef }) => {
   const { setIdUsuario } = usuarioContext;
   const [usuario, setUsuario] = useState<string>("");
   const [isValid, setIsValid] = useState<boolean>(false);
+  const [pattern, setPattern] = useState<string>("");
 
   const handleUsuarioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\s/g, "");
-    const validValue = validarInputUsuario(value);
-    setUsuario(validValue);
-    setIsValid(validValue ? true : false);
+    let validValue = false;
+    let newValue = value;
+
+    if (value.length > 0) {
+      const primerCaracter = value[0];
+      if (/[A-Z]/.test(primerCaracter)) {
+        validValue = validarTextoMayusculasYNumeros(value);
+        setPattern("^[A-Z][0-9]*$");
+        newValue = value.replace(/[^A-Z0-9]/g, "");
+      } else if (/[a-z]/.test(primerCaracter)) {
+        validValue = validarTextoPuntoTexto(value);
+        setPattern("^[a-z]+\\.[a-z]+$");
+        newValue = value.replace(/[^a-z.]/g, "");
+      }
+    }
+
+    setIsValid(validValue);
+    setUsuario(newValue);
   };
 
   return (
@@ -65,7 +85,7 @@ const Usuario: React.FC<UsuarioProps> = ({ usuarioRef }) => {
               onChange={handleUsuarioChange}
               onInput={handleUsuarioChange}
               placeholder="nombre.apellido"
-              pattern="^[a-z]+\.[a-z]+$"
+              // pattern={pattern}
               maxLength={100}
               isValid={isValid}
               required

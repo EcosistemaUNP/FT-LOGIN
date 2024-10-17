@@ -57,7 +57,7 @@ const Login: React.FC<FormIngresoProps> = (props) => {
     // Div que permite al login a ubicarse en el centro
     <div className="login-container">
       {/* Contenedor principal con sombra y ancho máximo de 720px */}
-      <Container style={{ maxWidth: "720px" }}>
+      <Container style={{ maxWidth: "720px", maxHeight: "600px" }}>
         {/* Fila para la presentación y los inputs de inicio de sesión */}
         <Row className="justify-content-md-center border-0 rounded shadow">
           {/* Columna izquierda con fondo de formulario y borde redondeado */}

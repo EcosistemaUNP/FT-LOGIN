@@ -49,6 +49,8 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
 
     if (attempts < maxAttempts) {
       if (!form.checkValidity()) {
+        console.log(form.checkValidity());
+
         e.stopPropagation();
         setValidated(false);
         toast.error("Formulario no valido", {
@@ -76,32 +78,28 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
 
       if (username && password) {
         try {
-          const data = await toast.promise(
+          await toast.promise(
             InicioSesionRequest(username, password, recaptchaToken),
-
             {
               pending: "Ingresando...",
               success: {
                 render({ data }) {
-                  if (data.status === 200) {
-                    localStorage.setItem("access_token", data.access_token);
-                    setTimeout(() => {
-                      window.location.href = "./";
-                    }, 1000);
-                    return "¡Ingreso exitoso!";
-                  }
-                  throw new Error("Error en la respuesta del servidor");
+                  localStorage.setItem("access_token", data.access_token);
+                  setTimeout(() => {
+                    window.location.href = "./";
+                  }, 1000);
+                  return "¡Ingreso exitoso!";
                 },
               },
               error: {
-                render() {
+                render({ data }) {
                   setValidated(false);
                   setAttempts((prevAttempts) => prevAttempts + 1);
-                  return "Error durante el ingreso";
+                  recaptchaRef.current?.reset();
+                  return data.message;
                 },
               },
             },
-
             {
               position: "top-right",
               className: "foo-bar",
