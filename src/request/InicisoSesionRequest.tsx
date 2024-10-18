@@ -16,7 +16,7 @@ export const InicioSesionRequest = async (
 
     if (!response.ok) {
       console.log(data.error);
-      
+
       throw new Error(data.error);
     }
 
