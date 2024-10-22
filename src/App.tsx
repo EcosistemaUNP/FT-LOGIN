@@ -1,5 +1,5 @@
 import React from "react";
-import IniciarSesion from "./InicioSesion 1";
+import IniciarSesion from "./InicioSesion";
 import "./styles/App.css";
 
 const App: React.FC = () => {
