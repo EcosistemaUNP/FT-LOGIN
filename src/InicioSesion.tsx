@@ -211,17 +211,17 @@ const Login: React.FC<FormIngresoProps> = (props) => {
 };
 
 // Definición del componente funcional IniciarSesion
-const IniciarSesion: React.FC = () => {
+const InicioSesion: React.FC = () => {
   // -----> Renderizado
   return (
-    <>
+    <div className="main-container">
       {/* El componente IngresoProvider envuelve al componente Login*/}
       <IngresoProvider>
         <Login />
       </IngresoProvider>
-    </>
+    </div>
   );
 };
-
+ 
 // Exporta el componente IniciarSesion para su uso en otros archivos
-export default IniciarSesion;
+export default InicioSesion;
