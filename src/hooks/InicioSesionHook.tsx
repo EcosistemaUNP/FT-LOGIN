@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom";
+import { jwtDecode, JwtPayload } from "jwt-decode";
 import { toast } from "react-toastify";
 import ReCAPTCHA from "react-google-recaptcha";
 import { InicioSesionRequest } from "../request/InicisoSesionRequest";
+
+interface CustomTokenPayload extends JwtPayload {
+  access_url?: string;
+  access_user?: string;
+}
 
 export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
@@ -38,6 +44,21 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
 
   const handleRecaptchaChange = (token: string | null) => {
     setRecaptchaToken(token);
+  };
+
+  const decodeToken = (token: string) => {
+    try {
+      const decoded = jwtDecode<CustomTokenPayload>(token);
+
+      // Acceder a los datos
+      const accessUrl = decoded.access_url;
+      const accessUser = decoded.access_user;
+
+      return { accessUrl, accessUser };
+    } catch (error) {
+      console.error("Token decoding failed:", error);
+      return null;
+    }
   };
 
   const handleSubmit = async (
@@ -86,12 +107,20 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
               pending: "Ingresando...",
               success: {
                 render({ data }) {
-                  localStorage.setItem("access_token", data.access_token);
-                  localStorage.setItem("access_url", data.access_url);
-                  localStorage.setItem("access_user", data.access_user);
-                  setTimeout(() => {
-                    navigate(data.access_url);
-                  }, 1000);
+                  const accessToken = data.access_token;
+                  const userToken = data.user_token;
+
+                  localStorage.setItem("access_token", accessToken);
+                  localStorage.setItem("user_token", userToken);
+
+                  const userInfo = decodeToken(userToken);
+                  if (userInfo && userInfo.accessUrl) {
+                    setTimeout(() => {
+                      navigate(userInfo?.accessUrl || "/not-found");
+                    }, 1000);
+                  } else {
+                    console.error("La URL de acceso no está disponible");
+                  }
                   return "¡Ingreso exitoso!";
                 },
               },
@@ -100,10 +129,14 @@ export const InicioSesionHook = (maxAttempts: number, blockTime: number) => {
                   setValidated(false);
                   setAttempts((prevAttempts) => prevAttempts + 1);
                   recaptchaRef.current?.reset();
-                  if (typeof data === 'object' && data !== null && 'message' in data) {
+                  if (
+                    typeof data === "object" &&
+                    data !== null &&
+                    "message" in data
+                  ) {
                     return (data as { message: string }).message;
                   }
-                  return 'Error: data no tiene el formato esperado';
+                  return "Error: data no tiene el formato esperado";
                 },
               },
             },

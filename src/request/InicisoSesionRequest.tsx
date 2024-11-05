@@ -11,15 +11,15 @@ export const InicioSesionRequest = async (
       },
       body: JSON.stringify({ username, password, recaptchaToken }),
     });
- 
+
     const data = await response.json();
- 
+
     if (!response.ok) {
       console.log(data.error);
       throw new Error(data.error);
     }
- 
-    return { access_token: data.access_token, access_url: data.access_url, access_user: data.access_user };
+
+    return { access_token: data.access_token, user_token: data.user_token };
   } catch (error: any) {
     throw new Error(error.message);
   }
