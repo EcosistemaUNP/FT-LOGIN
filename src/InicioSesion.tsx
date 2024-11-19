@@ -1,5 +1,5 @@
 // Importación de React y otros módulos necesarios
-import React, { useEffect } from "react";
+import React, { useState } from "react";
 import {
   FaFacebook,
   FaInstagram,
@@ -9,48 +9,395 @@ import {
   FaHeadphones,
   FaFileContract,
   FaKey,
+  FaUnlockKeyhole,
 } from "react-icons/fa6";
+import { FaUser, FaRegEye, FaRegEyeSlash } from "react-icons/fa";
+import {
+  Row,
+  Col,
+  Container,
+  FormGroup,
+  FormLabel,
+  FormControl,
+  InputGroup,
+  Button,
+} from "react-bootstrap";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+import { JwtPayload, jwtDecode } from "jwt-decode";
 import ReCAPTCHA from "react-google-recaptcha";
-import { Row, Col, Container, Button } from "react-bootstrap";
 
-// Importaciones de componentes propios
-import { IngresoProvider } from "./providers/IngresoProvider";
-import { InicioSesionHook } from "./hooks/InicioSesionHook";
-import { LogosUnp } from "./components/Logos";
-import { Recaptcha } from "./components/Recaptcha";
-import { Usuario, Contrasegna, RedesSociales } from "./components/Login";
+import LogosUnp from "./components/Logos";
+
+import {
+  useIdUsuario,
+  useIdContrasena,
+  useIdCaptcha,
+} from "./hooks/InicioSesionHook";
+import { InicioSesionService } from "./services/InicioSesionService";
+import { InicioSesionProvider } from "./contexts/InicioSesionContext";
+
+import { AuthProvider } from "./contexts/AuthContex";
+
+import {
+  validarTextoMayusculasYNumeros,
+  validarTextoPuntoTexto,
+} from "./func/ValidacionInput";
 
 // Importación de archivos de estilos CSS
 import "./styles/Bootstrap.css";
-import "./styles/InicioSesionStyles.css";
+import "./styles/InicioSesion.css";
+
+interface UsuarioProps {
+  isValid: boolean;
+}
+
+interface ContrasenaProps {
+  isValid: boolean;
+}
+
+interface SocialIconProps {
+  color: string;
+  IconoRedSocial: React.ComponentType<{ size: string; color: string }>;
+  descripcion: string;
+  enlace: string;
+}
+
+const Usuario: React.FC<UsuarioProps> = ({ isValid }) => {
+  const { idUsuario: usuario, setIdUsuario: setUsuario } = useIdUsuario();
+
+  const handleUsuarioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\s/g, "");
+    let validValue = false;
+    let newValue = value;
+
+    if (value.length > 0) {
+      const primerCaracter = value[0];
+      if (/[A-Z]/.test(primerCaracter)) {
+        validValue = validarTextoMayusculasYNumeros(value);
+        newValue = value.replace(/[^A-Z0-9]/g, "");
+      } else if (/[a-z]/.test(primerCaracter)) {
+        validValue = validarTextoPuntoTexto(value);
+        newValue = value.replace(/[^a-z.]/g, "");
+      }
+    }
+    setUsuario(newValue);
+  };
+
+  return (
+    <React.Fragment>
+      <Col xl={12} md={12} xs={12}>
+        <FormGroup className="mb-3" controlId="validacionUsuario">
+          <FormLabel>Usuario</FormLabel>
+          <InputGroup>
+            <InputGroup.Text id="email-icon">
+              <FaUser />
+            </InputGroup.Text>
+
+            <FormControl
+              className="rounded-end"
+              type="text"
+              value={usuario}
+              onChange={handleUsuarioChange}
+              onInput={handleUsuarioChange}
+              placeholder="nombre.apellido"
+              maxLength={100}
+              isValid={isValid}
+              required
+            />
+          </InputGroup>
+        </FormGroup>
+      </Col>
+    </React.Fragment>
+  );
+};
+
+const Contrasena: React.FC<ContrasenaProps> = ({ isValid }) => {
+  const { idContrasena: contrasena, setIdContrasena: setContrasena } =
+    useIdContrasena();
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  const handleContrasenaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\s/g, "");
+    setContrasena(value);
+  };
+
+  return (
+    <React.Fragment>
+      <Col xl={12} md={12} xs={12}>
+        <FormGroup className="mb-3" controlId="validacionContrasegna">
+          <FormLabel>Contraseña</FormLabel>
+          <InputGroup>
+            <InputGroup.Text id="password-icon">
+              <FaUnlockKeyhole />
+            </InputGroup.Text>
+            <FormControl
+              type={showPassword ? "text" : "password"}
+              value={contrasena}
+              onChange={handleContrasenaChange}
+              placeholder="*****************"
+              maxLength={100}
+              isValid={isValid}
+              required
+            />
+            <Button
+              type="button"
+              className="rounded-end"
+              variant="secondary"
+              onClick={() => {
+                setShowPassword((prev) => !prev);
+              }}
+            >
+              {showPassword ? (
+                <FaRegEye color="#FFF" />
+              ) : (
+                <FaRegEyeSlash color="#FFF" />
+              )}
+            </Button>
+            <FormControl.Feedback type="invalid">
+              Por favor ingresa una contrasena
+            </FormControl.Feedback>
+          </InputGroup>
+        </FormGroup>
+      </Col>
+    </React.Fragment>
+  );
+};
+
+const Captcha: React.FC = () => {
+  const { idCaptcha: captcha, setIdCaptcha: setCaptcha } = useIdCaptcha();
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [key, setKey] = useState<number>(0);
+
+  const handleCaptchaChange = (token: string | null) => {
+    if (token) {
+      setCaptcha(token);
+    }
+  };
+
+  const handleCaptchaLoad = () => {
+    setLoaded(true);
+    setError(null);
+  };
+
+  const handleCaptchaError = () => {
+    setError("Error al cargar reCAPTCHA. Por favor, inténtalo de nuevo.");
+    setKey((prevKey) => prevKey + 1);
+  };
+
+  return (
+    <Col
+      xl={12}
+      md={9}
+      xs={12}
+      className="d-flex justify-content-center mt-4 mb-2"
+      style={{ width: "308px", height: "80px" }}
+    >
+      {!loaded && (
+        <div
+          style={{
+            width: "305px",
+            height: "80px",
+            backgroundColor: "transparent",
+          }}
+        />
+      )}
+      {error && <div style={{ color: "red" }}>{error}</div>}
+      <ReCAPTCHA
+        key={key}
+        className="mb-3"
+        sitekey="6LeC9F0qAAAAAJrKsyU-wpvYmDquDcAoqhH_oASk"
+        onChange={handleCaptchaChange}
+        onLoad={handleCaptchaLoad}
+        onErrored={handleCaptchaError}
+      />
+    </Col>
+  );
+};
+
+const RedesSociales: React.FC<SocialIconProps> = ({
+  color,
+  IconoRedSocial,
+  descripcion,
+  enlace,
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const style = {
+    backgroundColor: isHovered ? "#365072" : color,
+    width: "37px",
+    height: "37px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: "50%",
+    marginTop: "2px",
+    marginRight: "4px",
+    marginLeft: "4px",
+    position: "relative" as "relative",
+    cursor: "pointer",
+  };
+
+  const tooltipStyle: React.CSSProperties = {
+    visibility: isHovered ? "visible" : "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    color: "#365072",
+    textAlign: "center",
+    borderRadius: "6px",
+    padding: "5px",
+    position: "absolute",
+    zIndex: 1,
+    top: "120%",
+    left: "50%",
+    marginLeft: "-75px",
+    width: "150px",
+    fontWeight: "600",
+  };
+
+  return (
+    <a
+      href={enlace}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ textDecoration: "none" }}
+    >
+      <div
+        style={style}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <IconoRedSocial size={"1.2em"} color="#FFF" />
+        <div style={tooltipStyle}>{descripcion}</div>
+      </div>
+    </a>
+  );
+};
 
 // Definición de tipos para las propiedades del formulario de ingreso
 interface FormIngresoProps {
   children?: React.ReactNode; // Propiedad opcional que permite pasar nodos React como hijos
 }
 
+interface CustomTokenPayload extends JwtPayload {
+  access_url?: string[];
+  access_user?: string;
+}
+
 // Definición del componente funcional Login que acepta las propiedades definidas en FormIngresoProps
 const Login: React.FC<FormIngresoProps> = (props) => {
-  // Referencias para usuario, contraseña y reCAPTCHA
-  const usuarioRef = React.useRef<HTMLInputElement>(null);
-  const contrasegnaRef = React.useRef<HTMLInputElement>(null);
-  const recaptchaRef = React.useRef<ReCAPTCHA>(null);
+  const { idUsuario: usuario } = useIdUsuario();
+  const { idContrasena: contrasena } = useIdContrasena();
+  const { idCaptcha: captcha } = useIdCaptcha();
 
-  const maxAttempts = 3; // Número máximo de intentos permitidos
-  const blockTime = 10; // Tiempo de bloqueo en segundos
+  const [isValid, setIsValid] = useState<boolean>(false);
+  const navigate = useNavigate();
 
-  // Uso del hook personalizado InicioSesionHook para manejar el estado del formulario de inicio de sesión
-  const {
-    recaptchaToken,
-    validated,
-    attempts,
-    isBlocked,
-    timer,
-    handleRecaptchaChange,
-    handleSubmit,
-  } = InicioSesionHook(maxAttempts, blockTime);
+  const decodeToken = (token: string) => {
+    try {
+      const decoded = jwtDecode<CustomTokenPayload>(token);
+      // Acceder a los datos
+      const accessUrl = decoded.access_url;
+      const accessUser = decoded.access_user;
 
-  // ------ > Renderizado
+      return { accessUrl, accessUser };
+    } catch (error) {
+      console.error("Token decoding failed:", error);
+      return null;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+
+    if (!form.checkValidity()) {
+      e.stopPropagation();
+      setIsValid(false);
+      toast.error("Formulario no valido", {
+        position: "top-right",
+        className: "foo-bar",
+        hideProgressBar: true,
+      });
+      return;
+    }
+
+    if (!captcha) {
+      e.stopPropagation();
+      toast.error("Por favor, completa el reCAPTCHA", {
+        position: "top-right",
+        className: "foo-bar",
+        hideProgressBar: true,
+      });
+      return;
+    }
+
+    setIsValid(true);
+
+    try {
+      await toast.promise(
+        InicioSesionService(usuario, contrasena, captcha),
+        {
+          pending: "Iniciando sesión...",
+          success: {
+            render({ data }) {
+              const accessToken = data.access_token;
+              const userToken = data.user_token;
+
+              localStorage.setItem("access_token", accessToken);
+              localStorage.setItem("user_token", userToken);
+              const userInfo = decodeToken(userToken);
+
+              if (userInfo && userInfo.accessUrl) {
+                setTimeout(() => {
+                  // @ts-ignore
+                  const url = userInfo.accessUrl[0];
+                  navigate(url);
+                }, 1000);
+              } else {
+                navigate("/sistema/usuario");
+                console.error("La URL de acceso no está disponible");
+              }
+
+              return "¡Inicio de sesión exitoso!";
+            },
+            position: "top-right",
+            className: "foo-bar",
+            hideProgressBar: true,
+          },
+          error: {
+            render({ data }) {
+              setIsValid(false);
+              if (
+                typeof data === "object" &&
+                data !== null &&
+                "message" in data
+              ) {
+                return (data as { message: string }).message;
+              }
+              return "Error: data no tiene el formato esperado";
+            },
+          },
+        },
+        {
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        }
+      );
+    } catch (err) {
+      toast.error("Hubo un error", {
+        position: "top-right",
+        className: "foo-bar",
+        hideProgressBar: true,
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  };
+
   return (
     // Div que permite al login a ubicarse en el centro
     <div className="login-container">
@@ -105,42 +452,26 @@ const Login: React.FC<FormIngresoProps> = (props) => {
               <form
                 method="POST"
                 noValidate
-                className={validated ? "was-validated" : ""}
-                onSubmit={(e) =>
-                  handleSubmit(e, usuarioRef, contrasegnaRef, recaptchaRef)
-                }
+                className={isValid ? "was-validated" : ""}
+                onSubmit={(e) => handleSubmit(e)}
               >
                 {/* Campos de usuario y contraseña */}
                 <Col xl={12} md={12} xs={12} className="justify-content-center">
-                  <Usuario usuarioRef={usuarioRef} />
-                  <Contrasegna contrasegnaRef={contrasegnaRef} />
+                  <Usuario isValid={isValid} />
+                  <Contrasena isValid={isValid} />
                 </Col>
 
                 {/* Botón de enviar */}
                 <Col xl={12} md={12} xs={12} className="d-grid gap-2">
-                  <Button
-                    variant="secondary"
-                    disabled={isBlocked}
-                    type="submit"
-                  >
-                    {isBlocked ? `Espera ${timer} segundos` : "Ingresar"}
+                  <Button variant="secondary" type="submit">
+                    Ingresar
                   </Button>
                 </Col>
 
                 {/* reCAPTCHA  */}
-                <Recaptcha
-                  onChange={handleRecaptchaChange}
-                  sitekey="6LeC9F0qAAAAAJrKsyU-wpvYmDquDcAoqhH_oASk"
-                />
+                <Captcha />
               </form>
             </Row>
-
-            {/* Mensaje de error */}
-            {/* {error && (
-              <Alert className="mt-3" key={"danger"} variant={"danger"}>
-                <MdError /> {error}
-              </Alert>
-            )} */}
           </Col>
         </Row>
 
@@ -215,13 +546,15 @@ const InicioSesion: React.FC = () => {
   // -----> Renderizado
   return (
     <div className="main-container">
-      {/* El componente IngresoProvider envuelve al componente Login*/}
-      <IngresoProvider>
-        <Login />
-      </IngresoProvider>
+      {/* El componente InicioSesionProvider envuelve al componente Login*/}
+      <AuthProvider>
+        <InicioSesionProvider>
+          <Login />
+        </InicioSesionProvider>
+      </AuthProvider>
     </div>
   );
 };
- 
+
 // Exporta el componente IniciarSesion para su uso en otros archivos
 export default InicioSesion;

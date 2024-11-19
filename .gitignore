@@ -60,6 +60,7 @@ build/Release
 # Dependency directories
 node_modules/
 jspm_packages/
+eco-unp-1.0.117.tgz
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/

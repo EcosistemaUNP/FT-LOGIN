@@ -1,6 +1,8 @@
-export const RegistroRequest = async (username: string, email: string) => {
+import { urlRequest } from "../utils/Url";
+
+export const RegistroService = async (username: string, email: string) => {
   try {
-    const response = await fetch("http://localhost:8000/inicio/registro/", {
+    const response = await fetch(`${urlRequest}/inicio/registro/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

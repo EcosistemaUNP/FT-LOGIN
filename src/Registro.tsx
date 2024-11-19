@@ -1,21 +1,41 @@
 import React, { useState } from "react";
 import { Form, Row, Col, Container, Button } from "react-bootstrap";
 import { toast } from "react-toastify";
-import { useIdCorreo, useIdUsuario } from "../hooks/RegistroHook";
-import { RegistroRequest } from "../request/RegistroRequest";
-import { RegistroProvider } from "../providers/RegistroProvider";
-import { LogosUnp } from "../components/Logos";
+import LogosUnp from "./components/Logos";
+import { validarTextoMayusculasYNumeros } from "./func/ValidacionInput";
+import { useIdCorreo, useIdUsuarioR } from "./hooks/RegistroHook";
+import { RegistroProvider } from "./contexts/RegistroContext";
+import { RegistroService } from "./services/RegistroService";
 
-import "../styles/Bootstrap.css";
-import "../styles/RegistroStyles.css";
+import "./styles/Bootstrap.css";
+import "./styles/Registro.css";
 
 interface RegistroPageProps {}
 
 const FormRegistro: React.FC<RegistroPageProps> = ({}) => {
-  const { idUsuario: usuario, setIdUsuario: setUsuario } = useIdUsuario();
+  const { idUsuario: usuario, setIdUsuario: setUsuario } = useIdUsuarioR();
   const { idCorreo: correo, setIdCorreo: setCorreo } = useIdCorreo();
 
   const [validated, setValidated] = useState<boolean>(false);
+
+  const [isValid, setIsValid] = useState<boolean>(false);
+
+  const handleUsuarioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\s/g, "");
+    let validValue = false;
+    let newValue = value;
+
+    if (value.length > 0) {
+      const primerCaracter = value[0];
+      if (/[A-Z]/.test(primerCaracter)) {
+        validValue = validarTextoMayusculasYNumeros(value);
+        newValue = value.replace(/[^A-Z0-9]/g, "");
+      }
+    }
+
+    setIsValid(validValue);
+    setUsuario(newValue);
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,7 +57,7 @@ const FormRegistro: React.FC<RegistroPageProps> = ({}) => {
     if (usuario && correo) {
       try {
         toast.promise(
-          RegistroRequest(usuario, correo),
+          RegistroService(usuario, correo),
           {
             pending: "Registrando",
             success: {
@@ -136,7 +156,9 @@ const FormRegistro: React.FC<RegistroPageProps> = ({}) => {
                     type="text"
                     placeholder="Escribe un usuario"
                     value={usuario}
-                    onChange={(e) => setUsuario(e.target.value)}
+                    onChange={handleUsuarioChange}
+                    onInput={handleUsuarioChange}
+                    isValid={isValid}
                     required
                   />
                 </Form.Group>
@@ -168,7 +190,7 @@ const FormRegistro: React.FC<RegistroPageProps> = ({}) => {
   );
 };
 
-const RegistroPage: React.FC = () => {
+const Registro: React.FC = () => {
   // -----> Renderizado
   return (
     <>
@@ -180,4 +202,4 @@ const RegistroPage: React.FC = () => {
   );
 };
 
-export default RegistroPage;
+export default Registro;
