@@ -207,7 +207,7 @@ const Captcha: React.FC = () => {
       <ReCAPTCHA
         key={key}
         className="mb-3"
-        sitekey="6LeC9F0qAAAAAJrKsyU-wpvYmDquDcAoqhH_oASk"
+        sitekey={`${process.env.REACT_APP_SECRET_KEY_CAPTCHA}`}
         onChange={handleCaptchaChange}
         onLoad={handleCaptchaLoad}
         onErrored={handleCaptchaError}
