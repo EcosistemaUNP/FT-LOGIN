@@ -1,5 +1,7 @@
 const path = require("path");
+const Dotenv = require("dotenv-webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const webpack = require("webpack");
 
 module.exports = {
   entry: "./src/index.tsx",
@@ -41,5 +43,11 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: "./src/index.html",
     }),
+    new Dotenv(),
+    // new webpack.DefinePlugin({
+    //   "process.env": JSON.stringify({
+    //     REACT_APP_SECRET_KEY_CAPTCHA: process.env.REACT_APP_SECRET_KEY_CAPTCHA,
+    //   }),
+    // }),
   ],
 };

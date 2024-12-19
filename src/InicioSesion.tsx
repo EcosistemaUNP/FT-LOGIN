@@ -169,7 +169,7 @@ const Captcha: React.FC = () => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState<number>(0);
-
+  
   const handleCaptchaChange = (token: string | null) => {
     if (token) {
       setCaptcha(token);
@@ -204,14 +204,18 @@ const Captcha: React.FC = () => {
         />
       )}
       {error && <div style={{ color: "red" }}>{error}</div>}
-      <ReCAPTCHA
-        key={key}
-        className="mb-3"
-        sitekey={`${process.env.REACT_APP_SECRET_KEY_CAPTCHA}`}
-        onChange={handleCaptchaChange}
-        onLoad={handleCaptchaLoad}
-        onErrored={handleCaptchaError}
-      />
+      {process.env.REACT_APP_SECRET_KEY_CAPTCHA !== undefined ? (
+        <ReCAPTCHA
+          key={key}
+          className="mb-3"
+          sitekey={process.env.REACT_APP_SECRET_KEY_CAPTCHA}
+          onChange={handleCaptchaChange}
+          onLoad={handleCaptchaLoad}
+          onErrored={handleCaptchaError}
+        />
+      ) : (
+        <div></div>
+      )}
     </Col>
   );
 };
