@@ -2,12 +2,12 @@ import { urlRequest } from "../utils/Url";
 
 export const RegistroService = async (username: string, email: string) => {
   try {
-    const response = await fetch(`${urlRequest}/inicio/registro/`, {
+    const response = await fetch(`${urlRequest}/registro/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username, email }),
+      body: JSON.stringify({ usuario: username, correo: email }),
     });
 
     const data = await response.json();

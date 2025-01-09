@@ -6,12 +6,12 @@ export const InicioSesionService = async (
   recaptchaToken: string | null
 ) => {
   try {
-    const response = await fetch(`${urlRequest}/inicio/ingreso/`, {
+    const response = await fetch(`${urlRequest}/acceso/ingreso/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username, password, recaptchaToken }),
+      body: JSON.stringify({ usuario: username, contraseña: password, recaptchaToken }),
     });
 
     const data = await response.json();
