@@ -1,5 +1,5 @@
 export const urlBase = "https://ecosistemapruebas.unp.gov.co";
-export const urlRequest = "https://ecosistemapruebas.unp.gov.co/api-eiunp";
+export const urlRequest = "https://ecosistemapruebas.unp.gov.co/api-login";
 
 // Url barra lateral
 export const urlMedidasEmergencia = "/sistema/medidas-emergencia";
