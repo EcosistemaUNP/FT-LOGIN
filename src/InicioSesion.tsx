@@ -1,5 +1,6 @@
 // Importación de React y otros módulos necesarios
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaFacebook,
   FaInstagram,
@@ -11,7 +12,7 @@ import {
   FaKey,
   FaUnlockKeyhole,
 } from "react-icons/fa6";
-import { FaUser, FaRegEye, FaRegEyeSlash } from "react-icons/fa";
+import { FaUser, FaRegEye, FaRegEyeSlash, FaMicrosoft } from "react-icons/fa";
 import {
   Row,
   Col,
@@ -23,9 +24,10 @@ import {
   Button,
 } from "react-bootstrap";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
-import { JwtPayload, jwtDecode } from "jwt-decode";
 import ReCAPTCHA from "react-google-recaptcha";
+import { msalInstance } from "./utils/msalConfig";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import QRCode from "react-qr-code";
 
 import LogosUnp from "./components/Logos";
 
@@ -34,10 +36,11 @@ import {
   useIdContrasena,
   useIdCaptcha,
 } from "./hooks/InicioSesionHook";
-import { InicioSesionService } from "./services/InicioSesionService";
+import {
+  InicioSesionService,
+  Validar2FA,
+} from "./services/InicioSesionService";
 import { InicioSesionProvider } from "./contexts/InicioSesionContext";
-
-import { AuthProvider } from "./contexts/AuthContex";
 
 import {
   validarTextoMayusculasYNumeros,
@@ -169,7 +172,7 @@ const Captcha: React.FC = () => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState<number>(0);
-  
+
   const handleCaptchaChange = (token: string | null) => {
     if (token) {
       setCaptcha(token);
@@ -278,127 +281,252 @@ const RedesSociales: React.FC<SocialIconProps> = ({
   );
 };
 
-// Definición de tipos para las propiedades del formulario de ingreso
+interface DobleFactorProps {
+  value: string;
+  onChange: React.ChangeEventHandler<HTMLInputElement>;
+}
+
+const DobleFactor: React.FC<DobleFactorProps> = ({ value, onChange }) => {
+  const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const inputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
+
+  const handleChange = (index: number, value: string) => {
+    if (value.length <= 1) {
+      const newCode = [...code];
+      newCode[index] = value;
+      setCode(newCode);
+      onChange({
+        target: { value: newCode.join("") },
+      } as React.ChangeEvent<HTMLInputElement>);
+
+      if (value.length === 1 && index < 5) {
+        inputRefs[index + 1].current?.focus();
+      }
+    }
+  };
+
+  const handleKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Backspace" && !code[index] && index > 0) {
+      inputRefs[index - 1].current?.focus();
+    }
+  };
+
+  useEffect(() => {
+    inputRefs[0].current?.focus();
+  }, []);
+
+  return (
+    <React.Fragment>
+      <Col xl={12} md={12} xs={12}>
+        <FormGroup className="mb-3" controlId="validacionUsuario">
+          <FormLabel>Codigo de verificación</FormLabel>
+          <Row className="row-gap-2">
+            {code.map((digit, index) => (
+              <Col {...{ xl: 4, md: 4, xs: 4 }} key={index}>
+                <FormControl
+                  key={index}
+                  type="number"
+                  className="text-center"
+                  autoComplete="off"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  ref={inputRefs[index]}
+                />
+              </Col>
+            ))}
+          </Row>
+        </FormGroup>
+      </Col>
+    </React.Fragment>
+  );
+};
+
+interface QRCodeProps {
+  qr_code: string;
+}
+
+const QRCodeComponent: React.FC<QRCodeProps> = ({ qr_code }) => {
+  return (
+    <div>
+      <QRCode value={qr_code} />
+    </div>
+  );
+};
+
 interface FormIngresoProps {
   children?: React.ReactNode; // Propiedad opcional que permite pasar nodos React como hijos
 }
 
-interface CustomTokenPayload extends JwtPayload {
-  access_url?: string[];
-  access_user?: string;
-}
-
-// Definición del componente funcional Login que acepta las propiedades definidas en FormIngresoProps
 const Login: React.FC<FormIngresoProps> = (props) => {
   const { idUsuario: usuario } = useIdUsuario();
   const { idContrasena: contrasena } = useIdContrasena();
   const { idCaptcha: captcha } = useIdCaptcha();
 
   const [isValid, setIsValid] = useState<boolean>(false);
+  const [conect2fa, setConect2fa] = useState<boolean>(false);
+  const [qrcode, setQrcode] = useState<string>("");
+  const [activar2fa, setActivar2fa] = useState<boolean>(false);
+  const [twoFACode, setTwoFACode] = useState<string>("");
+
+  const [loginMethod, setLoginMethod] = useState<string>("");
+
   const navigate = useNavigate();
 
-  const decodeToken = (token: string) => {
-    try {
-      const decoded = jwtDecode<CustomTokenPayload>(token);
-      // Acceder a los datos
-      const accessUrl = decoded.access_url;
-      const accessUser = decoded.access_user;
-
-      return { accessUrl, accessUser };
-    } catch (error) {
-      console.error("Token decoding failed:", error);
-      return null;
+  useEffect(() => {
+    const accessToken = localStorage.getItem("accessToken");
+    if (accessToken) {
+      navigate("/sistema/usuario");
     }
-  };
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
+    if (loginMethod === "microsoft") {
+      handleMicrosoftLogin();
+    } else if (loginMethod === "external") {
+      const form = e.currentTarget;
 
-    if (!form.checkValidity()) {
-      e.stopPropagation();
-      setIsValid(false);
-      toast.error("Formulario no valido", {
-        position: "top-right",
-        className: "foo-bar",
-        hideProgressBar: true,
-      });
-      return;
-    }
-
-    if (!captcha) {
-      e.stopPropagation();
-      toast.error("Por favor, completa el reCAPTCHA", {
-        position: "top-right",
-        className: "foo-bar",
-        hideProgressBar: true,
-      });
-      return;
-    }
-
-    setIsValid(true);
-
-    try {
-      await toast.promise(
-        InicioSesionService(usuario, contrasena, captcha),
-        {
-          pending: "Iniciando sesión...",
-          success: {
-            render({ data }) {
-              const accessToken = data.access_token;
-              const userToken = data.user_token;
-
-              localStorage.setItem("access_token", accessToken);
-              localStorage.setItem("user_token", userToken);
-              const userInfo = decodeToken(userToken);
-
-              if (userInfo && userInfo.accessUrl) {
-                setTimeout(() => {
-                  // @ts-ignore
-                  const url = userInfo.accessUrl[0];
-                  navigate(url);
-                }, 1000);
-              } else {
-                navigate("/sistema/usuario");
-                console.error("La URL de acceso no está disponible");
-              }
-
-              return "¡Inicio de sesión exitoso!";
-            },
-            position: "top-right",
-            className: "foo-bar",
-            hideProgressBar: true,
-          },
-          error: {
-            render({ data }) {
-              setIsValid(false);
-              if (
-                typeof data === "object" &&
-                data !== null &&
-                "message" in data
-              ) {
-                return (data as { message: string }).message;
-              }
-              return "Error: data no tiene el formato esperado";
-            },
-          },
-        },
-        {
+      if (!form.checkValidity()) {
+        e.stopPropagation();
+        setIsValid(false);
+        toast.error("Formulario no valido", {
           position: "top-right",
           className: "foo-bar",
           hideProgressBar: true,
+        });
+        return;
+      }
+
+      if (!captcha) {
+        e.stopPropagation();
+        toast.error("Por favor, completa el reCAPTCHA", {
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        });
+        return;
+      }
+
+      handleExternalLogin();
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      await msalInstance.loginRedirect({
+        scopes: ["User.Read"],
+      });
+
+      msalInstance.handleRedirectPromise().then(
+        (response) => {
+          if (response) {
+            const accessToken = response.accessToken;
+            localStorage.setItem("accessToken", accessToken);
+            navigate("/sistema/usuario");
+          }
+        },
+        (error) => {
+          if (error instanceof InteractionRequiredAuthError) {
+            msalInstance.acquireTokenRedirect({
+              scopes: ["User.Read"],
+            });
+          }
         }
       );
+    } catch (error) {
+      console.error("Error al iniciar sesión con Microsoft:", error);
+    }
+  };
+
+  const handleExternalLogin = async () => {
+    setIsValid(true);
+    try {
+      await toast.promise(InicioSesionService(usuario, contrasena, captcha), {
+        pending: "Iniciando sesión...",
+        success: {
+          render({ data }) {
+            if (data.qr_code) {
+              setConect2fa(true);
+              setQrcode(data.qr_code);
+            } else if (data.twoFARequired) {
+              setActivar2fa(true);
+            }
+            return "¡Credenciales correctas!";
+          },
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        },
+        error: {
+          render({ data }) {
+            setIsValid(false);
+            if (
+              typeof data === "object" &&
+              data !== null &&
+              "message" in data
+            ) {
+              return (data as { message: string }).message;
+            }
+            return "Error: data no tiene el formato esperado";
+          },
+        },
+      });
     } catch (err) {
-      toast.error("Hubo un error", {
+      toast.error("Hubo un error en el proceso de inicio de sesión", {
         position: "top-right",
         className: "foo-bar",
         hideProgressBar: true,
       });
+      console.log(err);
+    }
+  };
 
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+  const handleTwoFACodeSubmit = async () => {
+    try {
+      await toast.promise(Validar2FA(twoFACode, usuario), {
+        pending: "Validando codigo...",
+        success: {
+          render({ data }) {
+            const accessToken = data.access_token;
+            localStorage.setItem("accessToken", accessToken);
+            return "¡Codigo valido!";
+          },
+          position: "top-right",
+          className: "foo-bar",
+          hideProgressBar: true,
+        },
+        error: {
+          render({ data }) {
+            setIsValid(false);
+            if (
+              typeof data === "object" &&
+              data !== null &&
+              "message" in data
+            ) {
+              return (data as { message: string }).message;
+            }
+            return "Error: data no tiene el formato esperado";
+          },
+        },
+      });
+    } catch (error) {
+      toast.error("Error al validar el código", {
+        position: "top-right",
+        className: "foo-bar",
+        hideProgressBar: true,
+      });
     }
   };
 
@@ -448,7 +576,6 @@ const Login: React.FC<FormIngresoProps> = (props) => {
                 alt={"Escudo Institucional UNP"}
                 height={"120px"}
               />
-              <h4 className="mt-2">Inicio de sesión</h4>
             </Row>
 
             {/* Formulario de inicio de sesión */}
@@ -461,19 +588,55 @@ const Login: React.FC<FormIngresoProps> = (props) => {
               >
                 {/* Campos de usuario y contraseña */}
                 <Col xl={12} md={12} xs={12} className="justify-content-center">
-                  <Usuario isValid={isValid} />
-                  <Contrasena isValid={isValid} />
+                  {conect2fa ? (
+                    <>
+                      <h4 className="text-center mt-2">Escanea el código QR</h4>
+                      <QRCodeComponent qr_code={qrcode} />
+                    </>
+                  ) : activar2fa ? (
+                    <>
+                      <h4 className="text-center mt-2">
+                        Ingresa el código 2FA
+                      </h4>
+                      <DobleFactor
+                        value={twoFACode}
+                        onChange={(e) => setTwoFACode(e.target.value)}
+                      />
+                      <Button
+                        variant="secondary"
+                        onClick={handleTwoFACodeSubmit}
+                      >
+                        Validar Código 2FA
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <h4 className="text-center mt-2">
+                        Ingresa tus credenciales
+                      </h4>
+                      <Usuario isValid={isValid} />
+                      <Contrasena isValid={isValid} />
+                      <Col xl={12} md={12} xs={12} className="d-grid gap-2">
+                        <Button
+                          variant="secondary"
+                          type="submit"
+                          onClick={() => setLoginMethod("external")}
+                        >
+                          Ingresar
+                        </Button>
+                        <Button
+                          variant="outline-secondary"
+                          type="submit"
+                          className="flex justify-content-center align-items-center"
+                          onClick={() => setLoginMethod("microsoft")}
+                        >
+                          <FaMicrosoft /> Ingresar con microsoft
+                        </Button>
+                      </Col>
+                      <Captcha />
+                    </>
+                  )}
                 </Col>
-
-                {/* Botón de enviar */}
-                <Col xl={12} md={12} xs={12} className="d-grid gap-2">
-                  <Button variant="secondary" type="submit">
-                    Ingresar
-                  </Button>
-                </Col>
-
-                {/* reCAPTCHA  */}
-                <Captcha />
               </form>
             </Row>
           </Col>
@@ -547,18 +710,13 @@ const Login: React.FC<FormIngresoProps> = (props) => {
 
 // Definición del componente funcional IniciarSesion
 const InicioSesion: React.FC = () => {
-  // -----> Renderizado
   return (
     <div className="main-container">
-      {/* El componente InicioSesionProvider envuelve al componente Login*/}
-      <AuthProvider>
-        <InicioSesionProvider>
-          <Login />
-        </InicioSesionProvider>
-      </AuthProvider>
+      <InicioSesionProvider>
+        <Login />
+      </InicioSesionProvider>
     </div>
   );
 };
 
-// Exporta el componente IniciarSesion para su uso en otros archivos
 export default InicioSesion;

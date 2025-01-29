@@ -3,10 +3,11 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import IniciarSesion from "./InicioSesion";
 import Registro from "./Registro";
 import { CardFormBasicos } from "eco-unp/Forms";
+import { ProtectedRoute } from "eco-unp/Utils";
 
 const router = createBrowserRouter([
   {
-    path: "",
+    path: "login",
     element: <IniciarSesion />,
   },
   {
@@ -15,7 +16,11 @@ const router = createBrowserRouter([
   },
   {
     path: "datos-basicos",
-    element: <CardFormBasicos method="POST" canEdit={false} />,
+    element: (
+      <ProtectedRoute>
+        <CardFormBasicos method="POST" canEdit={false} />
+      </ProtectedRoute>
+    ),
   },
 ]);
 
