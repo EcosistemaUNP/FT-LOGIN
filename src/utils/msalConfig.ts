@@ -1,5 +1,4 @@
-import { Configuration, LogLevel } from "@azure/msal-browser";
-import { PublicClientApplication } from "@azure/msal-browser";
+import { Configuration } from "@azure/msal-browser";
 
 export const msalConfig: Configuration = {
   auth: {
@@ -11,16 +10,10 @@ export const msalConfig: Configuration = {
   },
   cache: {
     cacheLocation: "sessionStorage",
-    storeAuthStateInCookie: true,
-  },
-  system: {
-    loggerOptions: {
-      logLevel: LogLevel.Info,
-      loggerCallback: (level, message, containsPii) => {
-        console.log(message);
-      },
-    },
+    storeAuthStateInCookie: false,
   },
 };
 
-export const msalInstance = new PublicClientApplication(msalConfig);
+export const loginRequest = {
+  scopes: ["User.Read"],
+};

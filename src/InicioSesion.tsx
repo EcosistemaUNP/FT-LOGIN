@@ -25,11 +25,11 @@ import {
 } from "react-bootstrap";
 import { toast } from "react-toastify";
 import ReCAPTCHA from "react-google-recaptcha";
-import { msalInstance } from "./utils/msalConfig";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import QRCode from "react-qr-code";
 
-import LogosUnp from "./components/Logos";
+import { useAuth } from "eco-unp/Utils";
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "./utils/msalConfig";
 
 import {
   useIdUsuario,
@@ -48,8 +48,10 @@ import {
 } from "./func/ValidacionInput";
 
 // Importación de archivos de estilos CSS
+import LogosUnp from "./components/Logos";
 import "./styles/Bootstrap.css";
 import "./styles/InicioSesion.css";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
 
 interface UsuarioProps {
   isValid: boolean;
@@ -359,9 +361,9 @@ interface QRCodeProps {
 
 const QRCodeComponent: React.FC<QRCodeProps> = ({ qr_code }) => {
   return (
-    <div>
+    <Col xl={12} md={12} xs={12} className="d-flex justify-content-center">
       <QRCode value={qr_code} />
-    </div>
+    </Col>
   );
 };
 
@@ -373,9 +375,10 @@ const Login: React.FC<FormIngresoProps> = (props) => {
   const { idUsuario: usuario } = useIdUsuario();
   const { idContrasena: contrasena } = useIdContrasena();
   const { idCaptcha: captcha } = useIdCaptcha();
+  const { login, requiredData } = useAuth();
+  const { instance } = useMsal();
 
   const [isValid, setIsValid] = useState<boolean>(false);
-  const [conect2fa, setConect2fa] = useState<boolean>(false);
   const [qrcode, setQrcode] = useState<string>("");
   const [activar2fa, setActivar2fa] = useState<boolean>(false);
   const [twoFACode, setTwoFACode] = useState<string>("");
@@ -385,11 +388,29 @@ const Login: React.FC<FormIngresoProps> = (props) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      navigate("/sistema/usuario");
+    if (instance) {
+      instance
+        .handleRedirectPromise()
+        .then((response) => {
+          if (response) {
+            const accessToken = response.idToken;
+            localStorage.setItem("access_token", accessToken);
+          }
+        })
+        .catch((error) => {
+          console.error("Error en la redirección:", error);
+          if (error instanceof InteractionRequiredAuthError) {
+            instance.acquireTokenRedirect(loginRequest);
+          }
+        });
     }
-  }, [navigate]);
+  }, [instance]);
+
+  useEffect(() => {
+    if (requiredData) {
+      navigate("/datos-basicos");
+    }
+  }, [navigate, requiredData]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -425,44 +446,26 @@ const Login: React.FC<FormIngresoProps> = (props) => {
 
   const handleMicrosoftLogin = async () => {
     try {
-      await msalInstance.loginRedirect({
-        scopes: ["User.Read"],
-      });
-
-      msalInstance.handleRedirectPromise().then(
-        (response) => {
-          if (response) {
-            const accessToken = response.accessToken;
-            localStorage.setItem("accessToken", accessToken);
-            navigate("/sistema/usuario");
-          }
-        },
-        (error) => {
-          if (error instanceof InteractionRequiredAuthError) {
-            msalInstance.acquireTokenRedirect({
-              scopes: ["User.Read"],
-            });
-          }
-        }
-      );
+      await instance.loginRedirect(loginRequest);
     } catch (error) {
       console.error("Error al iniciar sesión con Microsoft:", error);
     }
   };
 
   const handleExternalLogin = async () => {
-    setIsValid(true);
     try {
       await toast.promise(InicioSesionService(usuario, contrasena, captcha), {
         pending: "Iniciando sesión...",
         success: {
           render({ data }) {
-            if (data.qr_code) {
-              setConect2fa(true);
-              setQrcode(data.qr_code);
-            } else if (data.twoFARequired) {
+            setIsValid(true);
+            if (data.twoFARequired) {
               setActivar2fa(true);
             }
+            if (data.qr_code) {
+              setQrcode(data.qr_code);
+            }
+            setIsValid(false);
             return "¡Credenciales correctas!";
           },
           position: "top-right",
@@ -494,13 +497,15 @@ const Login: React.FC<FormIngresoProps> = (props) => {
   };
 
   const handleTwoFACodeSubmit = async () => {
+    setIsValid(false);
     try {
       await toast.promise(Validar2FA(twoFACode, usuario), {
         pending: "Validando codigo...",
         success: {
           render({ data }) {
+            setIsValid(true);
             const accessToken = data.access_token;
-            localStorage.setItem("accessToken", accessToken);
+            login(accessToken);
             return "¡Codigo valido!";
           },
           position: "top-right",
@@ -586,30 +591,8 @@ const Login: React.FC<FormIngresoProps> = (props) => {
                 className={isValid ? "was-validated" : ""}
                 onSubmit={(e) => handleSubmit(e)}
               >
-                {/* Campos de usuario y contraseña */}
                 <Col xl={12} md={12} xs={12} className="justify-content-center">
-                  {conect2fa ? (
-                    <>
-                      <h4 className="text-center mt-2">Escanea el código QR</h4>
-                      <QRCodeComponent qr_code={qrcode} />
-                    </>
-                  ) : activar2fa ? (
-                    <>
-                      <h4 className="text-center mt-2">
-                        Ingresa el código 2FA
-                      </h4>
-                      <DobleFactor
-                        value={twoFACode}
-                        onChange={(e) => setTwoFACode(e.target.value)}
-                      />
-                      <Button
-                        variant="secondary"
-                        onClick={handleTwoFACodeSubmit}
-                      >
-                        Validar Código 2FA
-                      </Button>
-                    </>
-                  ) : (
+                  {!activar2fa ? (
                     <>
                       <h4 className="text-center mt-2">
                         Ingresa tus credenciales
@@ -634,6 +617,36 @@ const Login: React.FC<FormIngresoProps> = (props) => {
                         </Button>
                       </Col>
                       <Captcha />
+                    </>
+                  ) : qrcode.length > 0 ? (
+                    <>
+                      <h4 className="text-center mt-2">Escanea el código QR</h4>
+                      <QRCodeComponent qr_code={qrcode} />
+
+                      <Col xl={12} md={12} xs={12} className="d-grid gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setQrcode("")}
+                        >
+                          Ingresar codigo 2FA
+                        </Button>
+                      </Col>
+                    </>
+                  ) : (
+                    <>
+                      <h4 className="text-center mt-2">Ingresa el codigo</h4>
+                      <DobleFactor
+                        value={twoFACode}
+                        onChange={(e) => setTwoFACode(e.target.value)}
+                      />
+                      <Col xl={12} md={12} xs={12} className="d-grid gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={handleTwoFACodeSubmit}
+                        >
+                          Validar Código 2FA
+                        </Button>
+                      </Col>
                     </>
                   )}
                 </Col>
