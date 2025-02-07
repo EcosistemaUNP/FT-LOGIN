@@ -32,7 +32,7 @@ export const InicioSesionService = async (
 
 export const Validar2FA = async (code: string, username: string) => {
   try {
-    const response = await fetch(`${urlRequest}/2fa/`, {
+    const response = await fetch(`${urlRequest}/auth/2fa/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
