@@ -7,13 +7,16 @@ export const msalConfig: Configuration = {
       : "",
     authority: process.env.REACT_APP_AUTHORITY,
     redirectUri: process.env.REACT_APP_REDIRECT_URL,
+    postLogoutRedirectUri: window.location.origin,
+    protocolMode: "OIDC",
   },
   cache: {
     cacheLocation: "sessionStorage",
-    storeAuthStateInCookie: false,
+    storeAuthStateInCookie: true,
   },
 };
 
 export const loginRequest = {
   scopes: ["User.Read"],
+  state: window.location.href,
 };

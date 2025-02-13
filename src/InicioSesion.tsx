@@ -1,4 +1,3 @@
-// Importación de React y otros módulos necesarios
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,7 +11,7 @@ import {
   FaKey,
   FaUnlockKeyhole,
 } from "react-icons/fa6";
-import { FaUser, FaRegEye, FaRegEyeSlash, FaMicrosoft } from "react-icons/fa";
+import { FaUser, FaRegEye, FaRegEyeSlash } from "react-icons/fa";
 import {
   Row,
   Col,
@@ -24,7 +23,6 @@ import {
   Button,
 } from "react-bootstrap";
 import { toast } from "react-toastify";
-import ReCAPTCHA from "react-google-recaptcha";
 import QRCode from "react-qr-code";
 
 import { useAuth } from "eco-unp/Utils";
@@ -47,11 +45,12 @@ import {
   validarTextoPuntoTexto,
 } from "./func/ValidacionInput";
 
-// Importación de archivos de estilos CSS
 import LogosUnp from "./components/Logos";
 import "./styles/Bootstrap.css";
 import "./styles/InicioSesion.css";
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
+
+import { Turnstile } from "@marsidev/react-turnstile";
 
 interface UsuarioProps {
   isValid: boolean;
@@ -148,7 +147,7 @@ const Contrasena: React.FC<ContrasenaProps> = ({ isValid }) => {
             <Button
               type="button"
               className="rounded-end"
-              variant="secondary"
+              style={{ backgroundColor: "#365072", border: "none" }}
               onClick={() => {
                 setShowPassword((prev) => !prev);
               }}
@@ -170,26 +169,7 @@ const Contrasena: React.FC<ContrasenaProps> = ({ isValid }) => {
 };
 
 const Captcha: React.FC = () => {
-  const { idCaptcha: captcha, setIdCaptcha: setCaptcha } = useIdCaptcha();
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [key, setKey] = useState<number>(0);
-
-  const handleCaptchaChange = (token: string | null) => {
-    if (token) {
-      setCaptcha(token);
-    }
-  };
-
-  const handleCaptchaLoad = () => {
-    setLoaded(true);
-    setError(null);
-  };
-
-  const handleCaptchaError = () => {
-    setError("Error al cargar reCAPTCHA. Por favor, inténtalo de nuevo.");
-    setKey((prevKey) => prevKey + 1);
-  };
+  const { setIdCaptcha } = useIdCaptcha();
 
   return (
     <Col
@@ -199,28 +179,18 @@ const Captcha: React.FC = () => {
       className="d-flex justify-content-center mt-4 mb-2"
       style={{ width: "308px", height: "80px" }}
     >
-      {!loaded && (
-        <div
-          style={{
-            width: "305px",
-            height: "80px",
-            backgroundColor: "transparent",
-          }}
-        />
-      )}
-      {error && <div style={{ color: "red" }}>{error}</div>}
-      {process.env.REACT_APP_SECRET_KEY_CAPTCHA !== undefined ? (
-        <ReCAPTCHA
-          key={key}
-          className="mb-3"
-          sitekey={process.env.REACT_APP_SECRET_KEY_CAPTCHA}
-          onChange={handleCaptchaChange}
-          onLoad={handleCaptchaLoad}
-          onErrored={handleCaptchaError}
-        />
-      ) : (
-        <div></div>
-      )}
+      <Turnstile
+        siteKey={
+          process.env.REACT_APP_SECRET_KEY_CAPTCHA
+            ? process.env.REACT_APP_SECRET_KEY_CAPTCHA
+            : ""
+        }
+        options={{
+          theme: "light",
+          language: "es",
+        }}
+        onSuccess={setIdCaptcha}
+      />
     </Col>
   );
 };
@@ -361,8 +331,8 @@ interface QRCodeProps {
 
 const QRCodeComponent: React.FC<QRCodeProps> = ({ qr_code }) => {
   return (
-    <Col xl={12} md={12} xs={12} className="d-flex justify-content-center">
-      <QRCode value={qr_code} />
+    <Col xl={12} md={12} xs={12} className="d-flex justify-content-center my-3">
+      <QRCode value={qr_code} size={110} />
     </Col>
   );
 };
@@ -375,7 +345,7 @@ const Login: React.FC<FormIngresoProps> = (props) => {
   const { idUsuario: usuario } = useIdUsuario();
   const { idContrasena: contrasena } = useIdContrasena();
   const { idCaptcha: captcha } = useIdCaptcha();
-  const { login, requiredData } = useAuth();
+  const { requiredData } = useAuth();
   const { instance } = useMsal();
 
   const [isValid, setIsValid] = useState<boolean>(false);
@@ -393,8 +363,22 @@ const Login: React.FC<FormIngresoProps> = (props) => {
         .handleRedirectPromise()
         .then((response) => {
           if (response) {
-            const accessToken = response.idToken;
-            localStorage.setItem("access_token", accessToken);
+            const access_token = response.idToken;
+            fetch("http://localhost:8000/api/auth/microsoft_login/", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ access_token: access_token }),
+              credentials: "include",
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                toast.success("¡Credenciales correctas!");
+              })
+              .catch((error) => {
+                console.error("Error al procesar el token JWT:", error);
+              });
           }
         })
         .catch((error) => {
@@ -432,7 +416,7 @@ const Login: React.FC<FormIngresoProps> = (props) => {
 
       if (!captcha) {
         e.stopPropagation();
-        toast.error("Por favor, completa el reCAPTCHA", {
+        toast.error("Por favor, completa el CAPTCHA", {
           position: "top-right",
           className: "foo-bar",
           hideProgressBar: true,
@@ -504,8 +488,6 @@ const Login: React.FC<FormIngresoProps> = (props) => {
         success: {
           render({ data }) {
             setIsValid(true);
-            const accessToken = data.access_token;
-            login(accessToken);
             return "¡Codigo valido!";
           },
           position: "top-right",
@@ -539,9 +521,12 @@ const Login: React.FC<FormIngresoProps> = (props) => {
     // Div que permite al login a ubicarse en el centro
     <div className="login-container">
       {/* Contenedor principal con sombra y ancho máximo de 720px */}
-      <Container style={{ maxWidth: "720px", maxHeight: "600px" }}>
+      <Container
+        className="d-flex flex-column"
+        style={{ maxWidth: "720px", height: "600px" }}
+      >
         {/* Fila para la presentación y los inputs de inicio de sesión */}
-        <Row className="justify-content-md-center border-0 rounded shadow">
+        <Row className="justify-content-md-center border-0 rounded shadow h-100">
           {/* Columna izquierda con fondo de formulario y borde redondeado */}
           <Col
             md={6}
@@ -601,19 +586,23 @@ const Login: React.FC<FormIngresoProps> = (props) => {
                       <Contrasena isValid={isValid} />
                       <Col xl={12} md={12} xs={12} className="d-grid gap-2">
                         <Button
-                          variant="secondary"
+                          style={{ backgroundColor: "#365072", border: "none" }}
                           type="submit"
                           onClick={() => setLoginMethod("external")}
                         >
                           Ingresar
                         </Button>
                         <Button
-                          variant="outline-secondary"
+                          style={{
+                            backgroundColor: "#fff",
+                            borderColor: "#365072",
+                            color: "#365072",
+                          }}
                           type="submit"
                           className="flex justify-content-center align-items-center"
                           onClick={() => setLoginMethod("microsoft")}
                         >
-                          <FaMicrosoft /> Ingresar con microsoft
+                          Ingresar con microsoft
                         </Button>
                       </Col>
                       <Captcha />
@@ -625,7 +614,7 @@ const Login: React.FC<FormIngresoProps> = (props) => {
 
                       <Col xl={12} md={12} xs={12} className="d-grid gap-2">
                         <Button
-                          variant="secondary"
+                          style={{ backgroundColor: "#365072", border: "none" }}
                           onClick={() => setQrcode("")}
                         >
                           Ingresar codigo 2FA
@@ -641,10 +630,20 @@ const Login: React.FC<FormIngresoProps> = (props) => {
                       />
                       <Col xl={12} md={12} xs={12} className="d-grid gap-2">
                         <Button
-                          variant="secondary"
+                          style={{ backgroundColor: "#365072", border: "none" }}
                           onClick={handleTwoFACodeSubmit}
                         >
                           Validar Código 2FA
+                        </Button>
+                        <Button
+                          style={{
+                            backgroundColor: "#fff",
+                            borderColor: "#365072",
+                            color: "#365072",
+                          }}
+                          // onClick={handleTwoFACodeSubmit}
+                        >
+                          Validar con otro metodo
                         </Button>
                       </Col>
                     </>
@@ -721,7 +720,6 @@ const Login: React.FC<FormIngresoProps> = (props) => {
   );
 };
 
-// Definición del componente funcional IniciarSesion
 const InicioSesion: React.FC = () => {
   return (
     <div className="main-container">

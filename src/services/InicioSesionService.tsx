@@ -38,8 +38,15 @@ export const Validar2FA = async (code: string, username: string) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ code2fa: code, username: username }),
+      credentials: "include",
     });
+
+    if (!response.ok) {
+      throw new Error("Error en autenticación");
+    }
+
     const data = await response.json();
+
     return data;
   } catch (error) {
     console.error("Error validating 2FA code", error);
