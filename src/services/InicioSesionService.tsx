@@ -3,26 +3,53 @@ import { urlRequest } from "../utils/Url";
 export const InicioSesionService = async (
   username: string,
   password: string,
-  recaptchaToken: string | null
+  recaptcha: string | null
 ) => {
   try {
-    const response = await fetch(`${urlRequest}/inicio/ingreso/`, {
+    const response = await fetch(`${urlRequest}/auth/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username, password, recaptchaToken }),
+      body: JSON.stringify({
+        username,
+        password,
+        recaptcha,
+      }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.log(data.error);
       throw new Error(data.error);
     }
 
-    return { access_token: data.access_token, user_token: data.user_token };
+    return data;
   } catch (error: any) {
     throw new Error(error.message);
+  }
+};
+
+export const Validar2FA = async (code: string, username: string) => {
+  try {
+    const response = await fetch(`${urlRequest}/auth/2fa/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code2fa: code, username: username }),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Error en autenticación");
+    }
+
+    const data = await response.json();
+
+    return data;
+  } catch (error) {
+    console.error("Error validating 2FA code", error);
+    throw new Error("Error validating 2FA code");
   }
 };

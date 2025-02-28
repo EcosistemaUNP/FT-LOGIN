@@ -1,11 +1,14 @@
 const path = require("path");
+const Dotenv = require("dotenv-webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const webpack = require("webpack");
 
 module.exports = {
   entry: "./src/index.tsx",
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js",
+    publicPath: '/',
   },
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
@@ -36,10 +39,17 @@ module.exports = {
     },
     compress: true,
     port: 3000,
+    historyApiFallback: true,
   },
   plugins: [
     new HtmlWebpackPlugin({
       template: "./src/index.html",
     }),
+    new Dotenv(),
+    // new webpack.DefinePlugin({
+    //   "process.env": JSON.stringify({
+    //     REACT_APP_SECRET_KEY_CAPTCHA: process.env.REACT_APP_SECRET_KEY_CAPTCHA,
+    //   }),
+    // }),
   ],
 };
